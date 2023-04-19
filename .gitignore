@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#Additonal files/folder specified by user
+glpk-5.0
