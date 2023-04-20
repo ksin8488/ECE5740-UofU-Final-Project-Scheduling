@@ -3,6 +3,9 @@ import argparse
 import networkx as nx
 import glpk
 
+#MINIMIZING LATENCY IS REDUCING THE NUMBER OF CLOCK CYCLES TO RUN THE DESING
+#REDUCING AREA MEANS MAKE SURE STUFF ISN'T RUNNING ON THE SAME LEVEL/STATE
+
 #Defining functions for pre-processing the graph representation and design specifications
 def read_edgelist(file_path):
     G = nx.read_edgelist(file_path, delimiter='',data=[('memory', int)])
