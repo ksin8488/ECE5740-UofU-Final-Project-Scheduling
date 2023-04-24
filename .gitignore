@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 #Additonal files/folder specified by user
-glpk-5.0
+glpk-4.35
+glpk-4.35.tar.gz
