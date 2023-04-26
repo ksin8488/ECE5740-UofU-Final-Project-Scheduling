@@ -18,49 +18,25 @@ path = os.path.join(sys.path[0], "test1.edgelist")
 fh = open(os.path.join(sys.path[0], "test1.edgelist"), "r")
 fh.close()
 
-Graph = nx.read_edgelist(path, nodetype=str, data=(("operation", str),("time",int),))
-print(Graph, "\n")
-print(Graph.edges(data=True))
+Graph = nx.read_edgelist(path, nodetype=int, data=(("memory", int),))
 
-# G = nx.path_graph(4)
+# print(Graph, "\n")
+# prin
 
-# G = nx.write_edgelist(G, "test.edgelist")
-# G = nx.path(4)
-# fh = open("test.edgelist", "wb")
+# print(nx.dfs_predecessors(Graph))
+# print(nx.dfs_successors(Graph))
 
-# nx.write_edgelist(G, fh)
+# print(dict(nx.bfs_predecessors(Graph, 0)))
+# print(dict(nx.bfs_successors(Graph, 0)))
 
-# nx.write_edgelist(G, "test.edgelist.gz")
+# print(nx.descendants(Graph,5))
 
-# nx.write_edgelist(G, "test.edgelist.gz", data=False)
+for n in Graph:
+    graphDict = nx.neighbors(Graph, n)
+    print(str(n), Graph.adj[n])
 
-# G = nx.Graph()
+# var = "x"
+# tempEq = ""
+# with open('pred.ilp', 'a+') as f:
+#     for n in Graph:
 
-# G.add_edge(1, 2, weight=7, color="red")
-
-# nx.write_edgelist(G, "test.edgelist", data=False)
-
-# nx.write_edgelist(G, "test.edgelist", data=["color"])
-
-# nx.write_edgelist(G, "test.edgelist", data=["color", "weight"])
-
-# print(G.nodes())
-
-# #nx.DiGraph represents a directed graph (A DFG is a Data Flow Graph which is a directed graph)
-# dfg = nx.DiGraph()
-
-# #Create edges which creates the nodes between the edges
-# dfg.add_edges_from([("root", "a"), ("a", "b"), ("a", "e"), ("b", "c")
-# ,("b", "d"), ("d", "e")])
-
-# #Can add attributes to graphs, nodes, and edges that can be checked
-# dfg.add_node("n1", operation="+")
-
-# #show the attributes ("\n" is just a new line)
-# print(dfg.nodes["n1"], "\n")
-
-# #Prints out the nodes created
-# print(dfg.nodes()) 
-
-# print(1 in dfg) #Checks if node 1 is in graph
-# print(len(dfg)) #number of nodes in graph
