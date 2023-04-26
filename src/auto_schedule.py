@@ -13,6 +13,8 @@ def read_edgelist(file_path):
 
 def preprocess_graph(G):
     #implement any required pre-processing here
+    for n in G:
+        print(n)
     pass
 
 def preprocess_design_specification(latency, memory):
