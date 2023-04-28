@@ -19,7 +19,10 @@ def preprocess_graph(G):
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
         print(n, connectedNodes)
-        print(n, G.edges(n))
+        print(n, G.degree(n))
+        #print(n, nx.dfs_predecessors(G,n))
+        #print(n, nx.dfs_successors(G,n))
+        #print(n, G.edges(n))
         
     with open('pred.ilp', 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
         constraintNum = 0
@@ -35,6 +38,33 @@ def preprocess_graph(G):
             f.write(f"{constraint}{str(constraintNum)}: ")
             f.write(f"{var}{n} = 1\n")
             constraintNum += 1
+            
+        for edge in G.edges():
+            if edge[0] != rootNode:
+                f.write(f"{constraint}{str(constraintNum)}: {var}{edge[1]} - {var}{edge[0]} >= 1\n")
+                constraintNum += 1
+
+        # Add dependency constraints
+        for n in G.nodes():
+            if n != rootNode:
+                predecessors = list(G.predecessors(n))
+                for p in predecessors:
+                    f.write(f"{constraint}{str(constraintNum)}: {var}{n} - {var}{p} >= 1\n")
+                    constraintNum += 1
+
+        # # Add resource constraints (Based on memory?)
+        # resources = 10
+        # for t in range(1, resources + 1):
+        #     f.write(f"{constraint}{str(constraintNum)}: ")
+        #     terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
+        #     f.write(" + ".join(terms))
+        #     f.write(f" <= {resources}\n")
+        #     constraintNum += 1
+
+        # f.write("Bounds\n")
+        # for n in G.nodes():
+        #     if n != rootNode:
+        #         f.write(f"0 <= {var}{n} <= {resources}\n")
             
         
     
