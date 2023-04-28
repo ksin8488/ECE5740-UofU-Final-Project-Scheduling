@@ -1,0 +1,12 @@
+Minimize
+Subject To
+c0: x0 = 1
+c1: x4 = 1
+c2: x6 = 1
+c3: x8 = 1
+c4: x9 = 1
+c5: x5 = 1
+c6: x7 = 1
+c7: x1 = 1
+c8: x3 = 1
+c9: x2 = 1

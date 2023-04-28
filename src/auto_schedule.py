@@ -3,19 +3,41 @@ import argparse
 import networkx as nx
 import glpk
 
-#MINIMIZING LATENCY IS REDUCING THE NUMBER OF CLOCK CYCLES TO RUN THE DESING
-#REDUCING AREA MEANS MAKE SURE STUFF ISN'T RUNNING ON THE SAME LEVEL/STATE
+#To run the program: python3 src/auto_schedule.py -l=5 -a=20 -g=test/test1.edgelist
 
 #Defining functions for pre-processing the graph representation and design specifications
 def read_edgelist(file_path):
-    G = nx.read_edgelist(file_path, delimiter='',data=[('memory', int)])
+    G = nx.read_weighted_edgelist(file_path, create_using=nx.DiGraph, nodetype=int)
     return G
 
 def preprocess_graph(G):
     #implement any required pre-processing here
+    rootNode = -1 #Topmost node created before getting into the actual graph (represented as a -1)
+    G.add_node(rootNode)
+    lastNode = max(G.nodes()) #Gets the last node in the graph
+
     for n in G:
-        print(n)
-    pass
+        connectedNodes = sorted(list(G.adj[n]))
+        print(n, connectedNodes)
+        print(n, G.edges(n))
+        
+    with open('pred.ilp', 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
+        constraintNum = 0
+        constraint = "c"
+        var = "x"
+        
+        f.write("Minimize\n")
+        f.write("Subject To\n")
+        
+        for n in G:
+            if(n == -1):
+                break
+            f.write(f"{constraint}{str(constraintNum)}: ")
+            f.write(f"{var}{n} = 1\n")
+            constraintNum += 1
+            
+        
+    
 
 def preprocess_design_specification(latency, memory):
     #implement any required pre-processing here
@@ -54,11 +76,11 @@ def main():
 
     G = read_edgelist(args.g)
     preprocess_graph(G)
-    preprocess_design_specifications(args.l, args.a)
+    # preprocess_design_specifications(args.l, args.a)
 
-    minimize_memory_under_latency(G, args.l)
-    minimize_latency_under_memory(G, args.a)
-    latency_memory_pareto_analysis(G, args.l, args.a)
+    # minimize_memory_under_latency(G, args.l)
+    # minimize_latency_under_memory(G, args.a)
+    # latency_memory_pareto_analysis(G, args.l, args.a)
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
