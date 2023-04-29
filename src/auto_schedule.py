@@ -18,14 +18,53 @@ def preprocess_graph(G):
 
     #print(0, nx.dag_longest_path(G)) #Get's the longest path in the graph
     
+    #---THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP OPTIMINIZATION---      
+    # Perform topological sort
+    topo_order = list(nx.topological_sort(G))
+    # Initialize node levels dictionary
+    node_levels = {n: 0 for n in G.nodes()}
+
+    # Calculate node levels
+    for node in topo_order:
+        for successor in G.successors(node):
+            node_levels[successor] = max(node_levels[successor], node_levels[node] + 1)
+            
+    for nodes in node_levels:
+        print(nodes, node_levels[nodes])
+        
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
         print(n, connectedNodes)
-        # print(n, G.degree(n))
+        print(n, list(G.predecessors(n)))
+        #print(n, G.degree(n))
         #print(n, nx.dfs_predecessors(G,n))
         #print(n, nx.dfs_successors(G,n))
         #print(n, G.edges(n))
-        
+    
+    #---ADDING TOTAL WEIGHT TO EACH NODE---
+    #Testing for getting and setting memory values
+    print(G.out_edges())
+    print(G.get_edge_data(1,4))
+    edgeInt = G[1][4]["weight"]
+    TotalNodeWeight = [0.0]
+    nx.set_node_attributes(G, TotalNodeWeight, "TotalWeight")
+    G.nodes[1]["TotalWeight"] = edgeInt
+    print(G.nodes[1]["TotalWeight"])
+    
+    # for n in G:
+    #     nodePred = list(G.predecessors(n))
+    #     for np in nodePred:
+    #         if(len(nodePred) == 0.0): #In case the node has no predecesors (top level)
+    #             G[n]["TotalWeight"] = 0.0 #Top level nodes have a weight/memory of 0
+    #         else:
+    #             edgeInt = G[np][n]["weight"]
+    #             nodeWeight = G.nodes[n]["TotalWeight"]
+    #             edgeInt = edgeInt + float(nodeWeight[0])
+    #             G.nodes[n]["TotalWeight"] = edgeInt
+                
+    #             print(np, n, G.nodes[n]["TotalWeight"])
+            
+    #---ILP File Creation---  
     with open('pred.ilp', 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
         constraintNum = 0
         constraint = "c"
@@ -70,24 +109,12 @@ def preprocess_graph(G):
             
         f.write("\nInteger\n")
         for n in G.nodes():
-            f.write(f"{var}{n} ")
+            if(n==-1):
+                continue
+            else:
+                f.write(f"{var}{n} ")
             
         f.write("\n\nEnd")
-    
-    #THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP OPTIMINIZATION            
-    # Perform topological sort
-    topo_order = list(nx.topological_sort(G))
-
-    # Initialize node levels dictionary
-    node_levels = {n: 0 for n in G.nodes()}
-
-    # Calculate node levels
-    for node in topo_order:
-        for successor in G.successors(node):
-            node_levels[successor] = max(node_levels[successor], node_levels[node] + 1)
-            
-    for nodes in node_levels:
-        print(nodes, node_levels[nodes])
 
 def preprocess_design_specification(latency, memory):
     #implement any required pre-processing here
