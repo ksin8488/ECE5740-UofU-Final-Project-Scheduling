@@ -36,34 +36,30 @@ def preprocess_graph(G):
         connectedNodes = sorted(list(G.adj[n]))
         print(n, connectedNodes)
         print(n, list(G.predecessors(n)))
-        #print(n, G.degree(n))
-        #print(n, nx.dfs_predecessors(G,n))
-        #print(n, nx.dfs_successors(G,n))
-        #print(n, G.edges(n))
     
     #---ADDING TOTAL WEIGHT TO EACH NODE---
     #Testing for getting and setting memory values
-    print(G.out_edges())
     print(G.get_edge_data(1,4))
     edgeInt = G[1][4]["weight"]
-    TotalNodeWeight = [0.0]
+    TotalNodeWeight = [0]
     nx.set_node_attributes(G, TotalNodeWeight, "TotalWeight")
     G.nodes[1]["TotalWeight"] = edgeInt
     print(G.nodes[1]["TotalWeight"])
     
-    # for n in G:
-    #     nodePred = list(G.predecessors(n))
-    #     for np in nodePred:
-    #         if(len(nodePred) == 0.0): #In case the node has no predecesors (top level)
-    #             G[n]["TotalWeight"] = 0.0 #Top level nodes have a weight/memory of 0
-    #         else:
-    #             edgeInt = G[np][n]["weight"]
-    #             nodeWeight = G.nodes[n]["TotalWeight"]
-    #             edgeInt = edgeInt + float(nodeWeight[0])
-    #             G.nodes[n]["TotalWeight"] = edgeInt
+    for n in G:
+        nodePred = list(G.predecessors(n))
+        
+        if len(nodePred) == 0: # In case the node has no predecessors (top level)
+            G.nodes[n]["TotalWeight"] = 1 # Top level nodes have a weight/memory of 0
+        else:
+            total_weight = 1
+            for np in nodePred:
+                edge_weight = G[np][n]["weight"]
+                total_weight += edge_weight
                 
-    #             print(np, n, G.nodes[n]["TotalWeight"])
-            
+            G.nodes[n]["TotalWeight"] = int(total_weight)
+            print(n, G.nodes[n]["TotalWeight"])
+                
     #---ILP File Creation---  
     with open('pred.ilp', 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
         constraintNum = 0
@@ -71,7 +67,11 @@ def preprocess_graph(G):
         var = "x"
         
         f.write("Minimize\n")
-        f.write("Subject To\n")
+        TotalWeight = "TotalWeight"
+        obj_terms = [f"{G.nodes[n][TotalWeight]}x{n}" for n in G.nodes() if n != rootNode]
+        f.write("obj: " + " + ".join(obj_terms) + "\n")
+            
+        f.write("\nSubject To\n")
         
         #Each node constraint
         for n in G:
@@ -81,12 +81,6 @@ def preprocess_graph(G):
                 f.write(f"{constraint}{str(constraintNum)}: ")
                 f.write(f"{var}{n} = 1\n")
                 constraintNum += 1
-          
-        #ANOTHER way to get dependency constraints  
-        # for edge in G.edges():
-        #     if edge[0] != rootNode:
-        #         f.write(f"{constraint}{str(constraintNum)}: {var}{edge[1]} - {var}{edge[0]} >= 1\n")
-        #         constraintNum += 1
 
         f.write("\n")
         
