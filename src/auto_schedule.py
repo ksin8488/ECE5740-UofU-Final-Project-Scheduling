@@ -67,8 +67,14 @@ def preprocess_graph(G):
         for n in G.nodes():
             f.write(f"{integerStr}{str(integerNum)}: {var}{n} >= 0\n")
             integerNum += 1
+            
+        f.write("\nInteger\n")
+        for n in G.nodes():
+            f.write(f"{var}{n} ")
+            
+        f.write("\n\nEnd")
     
-    #THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP              
+    #THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP OPTIMINIZATION            
     # Perform topological sort
     topo_order = list(nx.topological_sort(G))
 
@@ -82,8 +88,6 @@ def preprocess_graph(G):
             
     for nodes in node_levels:
         print(nodes, node_levels[nodes])
-        
-    
 
 def preprocess_design_specification(latency, memory):
     #implement any required pre-processing here
