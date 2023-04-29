@@ -2,6 +2,7 @@ import sys
 import argparse
 import networkx as nx
 import glpk
+import subprocess
 
 #To run the program: python3 src/auto_schedule.py -l=5 -a=20 -g=test/test1.edgelist
 
@@ -14,10 +15,20 @@ def preprocess_graph(G):
     #implement any required pre-processing here
     rootNode = -1 #Topmost node created before getting into the actual graph (represented as a -1)
     G.add_node(rootNode)
-    lastNode = max(G.nodes()) #Gets the last node in the graph
+    return G, rootNode
 
-    #print(0, nx.dag_longest_path(G)) #Get's the longest path in the graph
+def preprocess_design_specification(latency, memory):
+    #implement any required pre-processing here
+    pass
+
+#Defining functions for generating ILP formulations and solving them using the GLPK solver
+def generate_ilp_formulation(G, latency, memory):
+    #implement ILP formulation generation here
+    if(len(nx.dag_longest_path(G)) > latency):
+        raise Exception("The graph's longest path is ", len(nx.dag_longest_path(G)), "while the latency constraint is ", latency)
     
+    #print(0, nx.dag_longest_path(G)) #Get's the longest path in the graph
+    rootNode = -1
     #---THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP OPTIMINIZATION---      
     # Perform topological sort
     topo_order = list(nx.topological_sort(G))
@@ -31,28 +42,23 @@ def preprocess_graph(G):
             
     for nodes in node_levels:
         print(nodes, node_levels[nodes])
-        
+            
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
         print(n, connectedNodes)
         print(n, list(G.predecessors(n)))
     
     #---ADDING TOTAL WEIGHT TO EACH NODE---
-    #Testing for getting and setting memory values
-    print(G.get_edge_data(1,4))
-    edgeInt = G[1][4]["weight"]
     TotalNodeWeight = [0]
     nx.set_node_attributes(G, TotalNodeWeight, "TotalWeight")
-    G.nodes[1]["TotalWeight"] = edgeInt
-    print(G.nodes[1]["TotalWeight"])
     
     for n in G:
         nodePred = list(G.predecessors(n))
         
         if len(nodePred) == 0: # In case the node has no predecessors (top level)
-            G.nodes[n]["TotalWeight"] = 1 # Top level nodes have a weight/memory of 0
+            G.nodes[n]["TotalWeight"] = 0 # Top level nodes have a weight/memory of 0
         else:
-            total_weight = 1
+            total_weight = 0
             for np in nodePred:
                 edge_weight = G[np][n]["weight"]
                 total_weight += edge_weight
@@ -61,7 +67,8 @@ def preprocess_graph(G):
             print(n, G.nodes[n]["TotalWeight"])
                 
     #---ILP File Creation---  
-    with open('pred.ilp', 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
+    ilp_file = "pred.ilp"
+    with open(ilp_file, 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
         constraintNum = 0
         constraint = "c"
         var = "x"
@@ -91,15 +98,34 @@ def preprocess_graph(G):
                 for p in predecessors:
                     f.write(f"{constraint}{str(constraintNum)}: {var}{n} - {var}{p} >= 1\n")
                     constraintNum += 1
-               
+            
+        f.write("\n") 
+        
+        # Add resource constraints (Based on memory?)
+        resources = memory
+        for t in range(1, resources + 1):
+            f.write(f"{constraint}{str(constraintNum)}: ")
+            terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
+            f.write(" + ".join(terms))
+            f.write(f" <= {resources}\n")
+            constraintNum += 1
+             
         f.write("\n")
              
         #Integer Constraints
         integerNum = 0
         integerStr = "i"
         for n in G.nodes():
-            f.write(f"{integerStr}{str(integerNum)}: {var}{n} >= 0\n")
-            integerNum += 1
+            if n==-1:
+                continue
+            else:
+                f.write(f"{integerStr}{str(integerNum)}: {var}{n} >= 0\n")
+                integerNum += 1
+
+        f.write("\nBounds\n")
+        for n in G.nodes():
+            if n != rootNode:
+                f.write(f"0 <= {var}{n} <= {resources}\n")
             
         f.write("\nInteger\n")
         for n in G.nodes():
@@ -109,34 +135,14 @@ def preprocess_graph(G):
                 f.write(f"{var}{n} ")
             
         f.write("\n\nEnd")
+        
+    return ilp_file
 
-def preprocess_design_specification(latency, memory):
-    #implement any required pre-processing here
-    pass
-
-#Defining functions for generating ILP formulations and solving them using the GLPK solver
-def generate_ilp_formulation(G, latency, memory):
-    #implement ILP formulation generation here
-    if(len(nx.dag_longest_path(G)) > latency):
-        raise Exception("The graph's longest path is ", len(nx.dag_longest_path(G)), "while the latency constraint is ", latency)
-    
-        # Add resource constraints (Based on memory?)
-        resources = memory
-        for t in range(1, resources + 1):
-            f.write(f"{constraint}{str(constraintNum)}: ")
-            terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
-            f.write(" + ".join(terms))
-            f.write(f" <= {resources}\n")
-            constraintNum += 1
-
-        f.write("Bounds\n")
-        for n in G.nodes():
-            if n != rootNode:
-                f.write(f"0 <= {var}{n} <= {resources}\n")
-
-def solve_ilp_formulation(ilp_formulation):
+def solve_ilp_formulation(ilp_formulation_file):
     #implement ILP solution extraction using GLPK solver here
-    pass
+    output_file = "output.sol"
+    result = subprocess.run(["glpsol", "--lp", ilp_formulation_file, "-o", output_file])
+    return output_file, result.returncode
 
 #Defining functions for handling the scheduling objectives
 def minimize_memory_under_latency(G, L):
@@ -158,16 +164,31 @@ def main():
     parser.add_argument('-a', type=int, help='Memory M')
     parser.add_argument('-g', type=str, help='Path to the edgelist file')
 
+    # args = parser.parse_args()
+
+    # G = read_edgelist(args.g)
+    # preprocess_graph(G)
+    # generate_ilp_formulation(G, args.l, args.a)
+    # # preprocess_design_specifications(args.l, args.a)
+
+    # # minimize_memory_under_latency(G, args.l)
+    # # minimize_latency_under_memory(G, args.a)
+    # # latency_memory_pareto_analysis(G, args.l, args.a)
+    
+    
+    
+    
     args = parser.parse_args()
 
     G = read_edgelist(args.g)
-    preprocess_graph(G)
-    generate_ilp_formulation(G, args.l, args.a)
-    # preprocess_design_specifications(args.l, args.a)
+    G, rootNode = preprocess_graph(G)
+    ilp_formulation = generate_ilp_formulation(G, args.l, args.a)
+    solution_file, return_code = solve_ilp_formulation(ilp_formulation)
 
-    # minimize_memory_under_latency(G, args.l)
-    # minimize_latency_under_memory(G, args.a)
-    # latency_memory_pareto_analysis(G, args.l, args.a)
+    if return_code == 0:
+        print(f"Solution file: {solution_file}")
+    else:
+        print("Infeasible solution.")
 
 if __name__ == "__main__":
     main()
