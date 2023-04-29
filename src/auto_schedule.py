@@ -16,10 +16,12 @@ def preprocess_graph(G):
     G.add_node(rootNode)
     lastNode = max(G.nodes()) #Gets the last node in the graph
 
+    #print(0, nx.dag_longest_path(G)) #Get's the longest path in the graph
+    
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
         print(n, connectedNodes)
-        print(n, G.degree(n))
+        # print(n, G.degree(n))
         #print(n, nx.dfs_predecessors(G,n))
         #print(n, nx.dfs_successors(G,n))
         #print(n, G.edges(n))
@@ -32,18 +34,23 @@ def preprocess_graph(G):
         f.write("Minimize\n")
         f.write("Subject To\n")
         
+        #Each node constraint
         for n in G:
             if(n == -1):
-                break
-            f.write(f"{constraint}{str(constraintNum)}: ")
-            f.write(f"{var}{n} = 1\n")
-            constraintNum += 1
-            
-        for edge in G.edges():
-            if edge[0] != rootNode:
-                f.write(f"{constraint}{str(constraintNum)}: {var}{edge[1]} - {var}{edge[0]} >= 1\n")
+                continue
+            else:
+                f.write(f"{constraint}{str(constraintNum)}: ")
+                f.write(f"{var}{n} = 1\n")
                 constraintNum += 1
+          
+        #ANOTHER way to get dependency constraints  
+        # for edge in G.edges():
+        #     if edge[0] != rootNode:
+        #         f.write(f"{constraint}{str(constraintNum)}: {var}{edge[1]} - {var}{edge[0]} >= 1\n")
+        #         constraintNum += 1
 
+        f.write("\n")
+        
         # Add dependency constraints
         for n in G.nodes():
             if n != rootNode:
@@ -51,21 +58,30 @@ def preprocess_graph(G):
                 for p in predecessors:
                     f.write(f"{constraint}{str(constraintNum)}: {var}{n} - {var}{p} >= 1\n")
                     constraintNum += 1
+               
+        f.write("\n")
+             
+        #Integer Constraints
+        integerNum = 0
+        integerStr = "i"
+        for n in G.nodes():
+            f.write(f"{integerStr}{str(integerNum)}: {var}{n} >= 0\n")
+            integerNum += 1
+    
+    #THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP              
+    # Perform topological sort
+    topo_order = list(nx.topological_sort(G))
 
-        # # Add resource constraints (Based on memory?)
-        # resources = 10
-        # for t in range(1, resources + 1):
-        #     f.write(f"{constraint}{str(constraintNum)}: ")
-        #     terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
-        #     f.write(" + ".join(terms))
-        #     f.write(f" <= {resources}\n")
-        #     constraintNum += 1
+    # Initialize node levels dictionary
+    node_levels = {n: 0 for n in G.nodes()}
 
-        # f.write("Bounds\n")
-        # for n in G.nodes():
-        #     if n != rootNode:
-        #         f.write(f"0 <= {var}{n} <= {resources}\n")
+    # Calculate node levels
+    for node in topo_order:
+        for successor in G.successors(node):
+            node_levels[successor] = max(node_levels[successor], node_levels[node] + 1)
             
+    for nodes in node_levels:
+        print(nodes, node_levels[nodes])
         
     
 
@@ -76,7 +92,22 @@ def preprocess_design_specification(latency, memory):
 #Defining functions for generating ILP formulations and solving them using the GLPK solver
 def generate_ilp_formulation(G, latency, memory):
     #implement ILP formulation generation here
-    pass
+    if(len(nx.dag_longest_path(G)) > latency):
+        raise Exception("The graph's longest path is ", len(nx.dag_longest_path(G)), "while the latency constraint is ", latency)
+    
+        # Add resource constraints (Based on memory?)
+        resources = memory
+        for t in range(1, resources + 1):
+            f.write(f"{constraint}{str(constraintNum)}: ")
+            terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
+            f.write(" + ".join(terms))
+            f.write(f" <= {resources}\n")
+            constraintNum += 1
+
+        f.write("Bounds\n")
+        for n in G.nodes():
+            if n != rootNode:
+                f.write(f"0 <= {var}{n} <= {resources}\n")
 
 def solve_ilp_formulation(ilp_formulation):
     #implement ILP solution extraction using GLPK solver here
@@ -106,6 +137,7 @@ def main():
 
     G = read_edgelist(args.g)
     preprocess_graph(G)
+    generate_ilp_formulation(G, args.l, args.a)
     # preprocess_design_specifications(args.l, args.a)
 
     # minimize_memory_under_latency(G, args.l)
