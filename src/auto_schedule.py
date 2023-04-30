@@ -86,8 +86,8 @@ def generate_ilp_formulation(G, latency, memory):
         f.write("\nSubject To\n")
     
         #TODO: PUT IN MINIMIZATION HERE AFTER WEIGHTS ARE CALCULATED
-        # min_Mem = minimize_memory_under_latency(G, latency)
-        # print("Min Mem under latency Output: ", min_Mem)
+        min_Mem = minimize_memory_under_latency(G, latency)
+        print("Min Mem under latency Output: ", min_Mem)
         
         min_Lat = minimize_latency_under_memory(G, memory, latency)
         print("Min Latency Output: ", min_Lat)
@@ -157,27 +157,78 @@ def solve_ilp_formulation(ilp_formulation_file):
     return output_file, result.returncode
 
 #Defining functions for handling the scheduling objectives
-def minimize_memory_under_latency(G, L): 
-    #implement memory minimization under latency L here
-    asapRes = calculate_asap(G, L)
-    alapRes = calculate_alap(G, L)
-    slackRes = compute_slack_mobility(asapRes, alapRes)
+# def minimize_memory_under_latency(G, L): 
+#     #implement memory minimization under latency L here
+#     asapRes = calculate_asap(G, L)
+#     alapRes = calculate_alap(G, L)
+#     slackRes = compute_slack_mobility(asapRes, alapRes)
     
-    #Start with ASAP scheduling and check the total memory of each level (which is the TotalMemory attribute of each node on that level added together)
-    #Then by using the slackRes, move around the nodes on the graph so each level has the minimum amount per level as possible
-    pass
+#     #Start with ASAP scheduling and check the total memory of each level (which is the TotalMemory attribute of each node on that level added together)
+#     #Then by using the slackRes, move around the nodes on the graph so each level has the minimum amount per level as possible
+#     pass
+
+# def minimize_latency_under_memory(G, M, L):
+#     #impliment latency minimization under memory M here
+#     asapRes = calculate_asap(G, L)
+#     alapRes = calculate_alap(G, L)
+#     slackRes = compute_slack_mobility(asapRes, alapRes)
+    
+#     #Start with ASAP scheduling and check the total memory of each level (which is the TotalMemory attribute of each node on that level added together)
+#     #Then by using SlackRes levels, move around the nodes and their dependents so each level is less or equal to M but also at the least level possible
+#     #If no version has the total memory of each level <= M then you get a warning message instead
+#     pass
+
+def minimize_memory_under_latency(G, L):
+    #Get the ASAP, ALAP and the Slack = ALAP-ASAP scheduling for different node "levels"
+    asap_schedule = calculate_asap(G, L)
+    alap_schedule = calculate_alap(G, L)
+    slack_mobility = compute_slack_mobility(asap_schedule, alap_schedule)
+
+    #Initialize a dictionary of total memory values for each level of the graph
+    memory_usage = {level: 0 for level in range(1, L+1)}
+
+    #Gets the level of the node and adds together the total memory for each level in an ASAP schedule
+    for node in asap_schedule:
+        level = asap_schedule[node]
+        memory_usage[level] += G.nodes[node]["TotalWeight"]
+
+    #Goes through node slack values
+    for node, slack in slack_mobility.items():
+        #Goes through the node's slack range
+        for i in range(1, slack+1):
+            #Uses slack range to add a new level then check if memory usage is less and updates Asap_schedule if so
+            new_level = asap_schedule[node] + i
+            if memory_usage[new_level] + G.nodes[node]["TotalWeight"] < memory_usage[asap_schedule[node]]:
+                memory_usage[asap_schedule[node]] -= G.nodes[node]["TotalWeight"]
+                memory_usage[new_level] += G.nodes[node]["TotalWeight"]
+                asap_schedule[node] = new_level
+
+    return asap_schedule
 
 def minimize_latency_under_memory(G, M, L):
-    #impliment latency minimization under memory M here
-    asapRes = calculate_asap(G, L)
-    alapRes = calculate_alap(G, L)
-    slackRes = compute_slack_mobility(asapRes, alapRes)
-    
-    #Start with ASAP scheduling and check the total memory of each level (which is the TotalMemory attribute of each node on that level added together)
-    #Then by using SlackRes levels, move around the nodes and their dependents so each level is less or equal to M but also at the least level possible
-    #If no version has the total memory of each level <= M then you get a warning message instead
-    pass
+    asap_schedule = calculate_asap(G, L)
+    alap_schedule = calculate_alap(G, L)
+    slack_mobility = compute_slack_mobility(asap_schedule, alap_schedule)
 
+    memory_usage = {level: 0 for level in range(1, L+1)}
+
+    for node in asap_schedule:
+        level = asap_schedule[node]
+        memory_usage[level] += G.nodes[node]["TotalWeight"]
+
+    for level in range(1, L+1):
+        for node, slack in slack_mobility.items():
+            if asap_schedule[node] == level:
+                for i in range(1, slack+1):
+                    new_level = asap_schedule[node] - i
+                    #Checks if new level for the node does not exceed M constraint, if not then adds node to that level
+                    if new_level >= 1 and memory_usage[new_level] + G.nodes[node]["TotalWeight"] <= M:
+                        memory_usage[asap_schedule[node]] -= G.nodes[node]["TotalWeight"]
+                        memory_usage[new_level] += G.nodes[node]["TotalWeight"]
+                        asap_schedule[node] = new_level
+
+    return asap_schedule
+    
 def latency_memory_pareto_analysis(G, L, M):
     #implement Pareto-optimal analysis here
     pass
