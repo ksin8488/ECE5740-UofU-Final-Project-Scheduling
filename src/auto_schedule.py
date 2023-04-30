@@ -24,8 +24,6 @@ def preprocess_design_specification(latency, memory):
 #Defining functions for generating ILP formulations and solving them using the GLPK solver
 def generate_ilp_formulation(G, latency, memory):
     #implement ILP formulation generation here
-    if(len(nx.dag_longest_path(G)) > latency):
-        raise Exception("The graph's longest path is ", len(nx.dag_longest_path(G)), "while the latency constraint is ", latency)
     
     #print(0, nx.dag_longest_path(G)) #Get's the longest path in the graph
     rootNode = -1
@@ -33,20 +31,30 @@ def generate_ilp_formulation(G, latency, memory):
     # Perform topological sort
     topo_order = list(nx.topological_sort(G))
     # Initialize node levels dictionary
-    node_levels = {n: 0 for n in G.nodes()}
+    node_levels = {n: 1 for n in G.nodes()}
 
     # Calculate node levels
     for node in topo_order:
         for successor in G.successors(node):
             node_levels[successor] = max(node_levels[successor], node_levels[node] + 1)
+            if(node_levels[successor] > latency):
+                raise Exception("The current node depth is ", node_levels[successor], "while the latency constraint is ", latency)
             
-    for nodes in node_levels:
-        print(nodes, node_levels[nodes])
+    # for nodes in node_levels:
+    #     print(nodes, node_levels[nodes])
+        
+    #---Calculate Slack for Nodes---
+    asap = calculate_asap(G, latency)
+    alap = calculate_alap(G, latency)
+    print(asap)
+    print(alap)
+    slackMob = compute_slack_mobility(asap, alap)
+    print(slackMob)
             
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
-        print(n, connectedNodes)
-        print(n, list(G.predecessors(n)))
+        #print(n, connectedNodes)
+        #print(n, list(G.predecessors(n)))
     
     #---ADDING TOTAL WEIGHT TO EACH NODE---
     TotalNodeWeight = [0]
@@ -64,7 +72,7 @@ def generate_ilp_formulation(G, latency, memory):
                 total_weight += edge_weight
                 
             G.nodes[n]["TotalWeight"] = int(total_weight)
-            print(n, G.nodes[n]["TotalWeight"])
+            #print(n, G.nodes[n]["TotalWeight"])
                 
     #---ILP File Creation---  
     ilp_file = "pred.ilp"
@@ -157,6 +165,35 @@ def latency_memory_pareto_analysis(G, L, M):
     #implement Pareto-optimal analysis here
     pass
 
+def calculate_asap(G, latency):
+    topo_order = list(nx.topological_sort(G))
+    node_levels = {n: 1 for n in G.nodes()}
+
+    for node in topo_order:
+        for successor in G.successors(node):
+            node_levels[successor] = max(node_levels[successor], node_levels[node] + 1)
+
+    asap_schedule = {n: node_levels[n] for n in G.nodes() if n != -1}
+    return asap_schedule
+
+def calculate_alap(G, latency):
+    topo_order = list(nx.topological_sort(G))[::-1]
+    node_levels = {n: latency for n in G.nodes()}
+
+    for node in topo_order:
+        for predecessor in G.predecessors(node):
+            if node != -1:
+                node_levels[predecessor] = min(node_levels[predecessor], node_levels[node] - 1)
+
+    alap_schedule = {n: node_levels[n] for n in G.nodes() if n != -1}
+    return alap_schedule
+
+def compute_slack_mobility(asap_schedule, alap_schedule):
+    slack_mobility = {}
+    for node in asap_schedule:
+        slack_mobility[node] = alap_schedule[node] - asap_schedule[node]
+    return slack_mobility
+
 #Main function to parse input arguments and execute the tool
 def main():
     parser = argparse.ArgumentParser(description='Automated ILP Scheduling Tool')
@@ -164,24 +201,11 @@ def main():
     parser.add_argument('-a', type=int, help='Memory M')
     parser.add_argument('-g', type=str, help='Path to the edgelist file')
 
-    # args = parser.parse_args()
-
-    # G = read_edgelist(args.g)
-    # preprocess_graph(G)
-    # generate_ilp_formulation(G, args.l, args.a)
-    # # preprocess_design_specifications(args.l, args.a)
-
-    # # minimize_memory_under_latency(G, args.l)
-    # # minimize_latency_under_memory(G, args.a)
-    # # latency_memory_pareto_analysis(G, args.l, args.a)
-    
-    
-    
-    
     args = parser.parse_args()
 
     G = read_edgelist(args.g)
     G, rootNode = preprocess_graph(G)
+    
     ilp_formulation = generate_ilp_formulation(G, args.l, args.a)
     solution_file, return_code = solve_ilp_formulation(ilp_formulation)
 
