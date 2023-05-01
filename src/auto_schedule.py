@@ -46,8 +46,6 @@ def generate_ilp_formulation(G, latency, memory):
             
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
-        #print(n, connectedNodes)
-        #print(n, list(G.predecessors(n)))
     
     #---ADDING TOTAL WEIGHT TO EACH NODE---
     TotalNodeWeight = [0]
@@ -78,8 +76,7 @@ def generate_ilp_formulation(G, latency, memory):
     return filesMade
             
 def create_ilp_file(G, schedule, memoryMinTrue, memory):
-    #Implement ILP file maker that uses schedule dictionary for its constraints
-    #---ILP File Creation---  TODO: MOVE THIS INTO ITS OWN METHOD
+    #---ILP File Creation---
     if(memoryMinTrue == True):
         ilp_file = "memoryMin.ilp"
     else:
@@ -101,6 +98,7 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
         constraintNum = 0
         constraint = "c"
         var = "x"
+        integerList = [] #List of integers to be used at the end for the Integer section
         
         f.write("Minimize\n")
         TotalWeight = "TotalWeight"
@@ -177,6 +175,9 @@ def solve_ilp_formulation(ilp_formulation_file, minMemTrue):
     result = subprocess.run(["glpsol", "--lp", ilp_formulation_file, "-o", output_file])
     return output_file, result.returncode
 
+#TODO: Fix issue IN BOTH FUNCTIONS? where successors/predecesors are appearing on the same level
+#TODO: Realized this is NOT to get the best schedule but just all possible schedules that fit. Then all those 
+#possibilities will be put into GLPK and the best one outputted
 def minimize_memory_under_latency(G, L):
     #Get the ASAP, ALAP and the Slack = ALAP-ASAP scheduling for different node "levels"
     asap_schedule = calculate_asap(G, L)
