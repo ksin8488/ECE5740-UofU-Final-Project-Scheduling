@@ -131,9 +131,4 @@ dmypy.json
 #Additonal files/folder specified by user
 glpk-4.35
 glpk-4.35.tar.gz
-memOutput.sol
-latOutput.sol
-memoryMin.ilp
-latencyMin.ilp
-pred.ilp
 
