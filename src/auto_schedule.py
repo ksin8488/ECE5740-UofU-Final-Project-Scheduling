@@ -113,6 +113,7 @@ def create_ilp_file(G, latency, memoryMinTrue, memory):
         slackRange = compute_slack_mobility(asapSchedule, alapSchedule)
         
         f.write("Minimize\n")
+        
         TotalWeight = "TotalWeight"
         obj_terms = [f"{G.nodes[n][TotalWeight]}x{n}" for n in G.nodes() if n != rootNode]
         f.write("obj: " + " + ".join(obj_terms) + "\n")
@@ -213,7 +214,32 @@ def create_ilp_file(G, latency, memoryMinTrue, memory):
                         f.write(f"{integerList[n][rangeNum]} >= 0\n")
                         integerNum +=1
                         rangeNum = rangeNum + 1
-
+        f.write("\n")
+        
+        #Resource Constraints
+        resourceStr = "r"
+        resourceNum = 0
+        for n in G.nodes():
+            if n==-1:
+                continue
+            else:
+                rangeNum = 0
+                if type(integerList[n]) != list:
+                    f.write(f"{resourceStr}{str(resourceNum)}: ")
+                    f.write(f"{integerList[n]} - {var}{n} <= 0\n") 
+                    resourceNum += 1
+                        
+                else:
+                    terms = []
+                    for termIndex in integerList[n]:
+                        terms.append(f"{integerList[n][rangeNum]}")
+                        rangeNum += 1
+                        
+                    f.write(f"{resourceStr}{str(resourceNum)}: ")
+                    f.write(" + ".join(terms))
+                    f.write(f" - {var}{n} <= 0\n")
+                    resourceNum += 1
+                
         # f.write("\nBounds\n")
         # for n in G.nodes():
         #     if n != rootNode:

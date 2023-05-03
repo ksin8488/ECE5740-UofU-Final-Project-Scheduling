@@ -1,9 +1,9 @@
 Problem:    
-Rows:       42
+Rows:       51
 Columns:    34 (25 integer, 0 binary)
-Non-zeros:  91
+Non-zeros:  125
 Status:     INTEGER OPTIMAL
-Objective:  obj = 0 (MINimum)
+Objective:  obj = 44 (MINimum)
 
    No.   Row name        Activity     Lower bound   Upper bound
 ------ ------------    ------------- ------------- -------------
@@ -49,18 +49,27 @@ Objective:  obj = 0 (MINimum)
     40 i22                         1             0               
     41 i23                         0             0               
     42 i24                         1             0               
+    43 r0                          0                           0 
+    44 r1                          0                           0 
+    45 r2                          0                           0 
+    46 r3                          0                           0 
+    47 r4                          0                           0 
+    48 r5                          0                           0 
+    49 r6                          0                           0 
+    50 r7                          0                           0 
+    51 r8                          0                           0 
 
    No. Column name       Activity     Lower bound   Upper bound
 ------ ------------    ------------- ------------- -------------
-     1 x1                          0             0               
-     2 x4                          0             0               
-     3 x2                          0             0               
-     4 x5                          0             0               
-     5 x8                          0             0               
-     6 x3                          0             0               
-     7 x6                          0             0               
-     8 x7                          0             0               
-     9 x9                          0             0               
+     1 x1                          1             0               
+     2 x4                          1             0               
+     3 x2                          1             0               
+     4 x5                          1             0               
+     5 x8                          1             0               
+     6 x3                          1             0               
+     7 x6                          1             0               
+     8 x7                          1             0               
+     9 x9                          1             0               
     10 x11          *              0             0               
     11 x12          *              1             0               
     12 x42          *              0             0               
