@@ -17,6 +17,9 @@ def preprocess_graph(G):
     G.add_node(rootNode)
     return G, rootNode
 
+def critical_path(G, latency):
+    pass
+    
 #Defining functions for generating ILP formulations and solving them using the GLPK solver
 def generate_ilp_formulation(G, latency, memory):
     #implement ILP formulation generation here
@@ -69,6 +72,7 @@ def generate_ilp_formulation(G, latency, memory):
     min_Lat = minimize_latency_under_memory(G, memory, latency)
     print("Min Latency Output: ", min_Lat)
     
+    print("Slack Mobility", slackMob)
     filesMade = []
     filesMade.append(create_ilp_file(G, min_Mem, True, memory))
     filesMade.append(create_ilp_file(G, min_Lat, False, memory))
@@ -99,7 +103,7 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
         constraint = "c"
         var = "x"
         integerList = [] #List of integers to be used at the end for the Integer section
-        
+    
         f.write("Minimize\n")
         TotalWeight = "TotalWeight"
         obj_terms = [f"{G.nodes[n][TotalWeight]}x{n}" for n in G.nodes() if n != rootNode]
@@ -113,7 +117,9 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
                 continue
             else:
                 f.write(f"{constraint}{str(constraintNum)}: ")
-                f.write(f"{var}{n} = 1\n")
+                #f.write(f"{var}{n} = 1\n") ##OLD version
+                f.write(f"{var}{n}{schedule[n]} = 1\n")
+                integerList.append(f"{var}{n}{schedule[n]}") #Adds the new integer to the list to be used later
                 constraintNum += 1
 
         f.write("\n")
@@ -126,16 +132,16 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
                     f.write(f"{constraint}{str(constraintNum)}: {var}{n} - {var}{p} >= 1\n")
                     constraintNum += 1
             
-        f.write("\n") 
+        #f.write("\n") 
         
         # Add resource constraints (Based on memory?)
         resources = memory
-        for t in range(1, resources + 1):
-            f.write(f"{constraint}{str(constraintNum)}: ")
-            terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
-            f.write(" + ".join(terms))
-            f.write(f" <= {resources}\n")
-            constraintNum += 1
+        # for t in range(1, resources + 1):
+        #     f.write(f"{constraint}{str(constraintNum)}: ")
+        #     terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
+        #     f.write(" + ".join(terms))
+        #     f.write(f" <= {resources}\n")
+        #     constraintNum += 1
              
         f.write("\n")
              
@@ -311,6 +317,9 @@ def main():
         print(f"latSolution file: {latSolution_file}")
     else:
         print("Infeasible solution.")
+        
+    # paretoA = latency_memory_pareto_analysis(G, args.l, args.a)
+    # print("Pareto Analysis Results:",paretoA)
 
 if __name__ == "__main__":
     main()
