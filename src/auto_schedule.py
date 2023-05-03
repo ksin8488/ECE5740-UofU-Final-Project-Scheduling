@@ -25,7 +25,6 @@ def critical_path(G, latency):
 def generate_ilp_formulation(G, latency, memory):
     #implement ILP formulation generation here
     
-    #print(0, nx.dag_longest_path(G)) #Get's the longest path in the graph
     rootNode = -1
     #---THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP OPTIMINIZATION---      
     # Perform topological sort
@@ -43,10 +42,10 @@ def generate_ilp_formulation(G, latency, memory):
     #---Calculate Slack for Nodes---
     asap = calculate_asap(G, latency)
     alap = calculate_alap(G, latency)
-    print("ASAP scheudle:", asap)
-    print("ALAP schedule:", alap)
+    #print("ASAP scheudle:", asap)
+    #print("ALAP schedule:", alap)
     slackMob = compute_slack_mobility(asap, alap)
-    print("Slack Mobility:", slackMob)
+    #print("Slack Mobility:", slackMob)
             
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
@@ -66,24 +65,19 @@ def generate_ilp_formulation(G, latency, memory):
                 total_weight += edge_weight
             G.nodes[n]["TotalWeight"] = int(total_weight)
             
-    #TODO: PUT IN MINIMIZATION HERE AFTER WEIGHTS ARE CALCULATED
     min_Mem = minimize_memory_under_latency(G, latency)
-    print("Min Mem under latency Output: ", min_Mem)
+    #print("Min Mem under latency Output: ", min_Mem)
         
     min_Lat = minimize_latency_under_memory(G, memory, latency)
-    print("Min Latency Output: ", min_Lat)
+    #print("Min Latency Output: ", min_Lat)
     
     filesMade = []
-    # filesMade.append(create_ilp_file(G, min_Mem, True, memory))
-    # filesMade.append(create_ilp_file(G, min_Lat, False, memory))
-    
-    #TODO: Version without minimization and gives latency instead
-    filesMade.append(create_ilp_file(G, latency, True, memory))
-    filesMade.append(create_ilp_file(G, latency, False, memory))
+    filesMade.append(create_ilp_file(G, latency, min_Mem, True, memory))
+    filesMade.append(create_ilp_file(G, latency, min_Lat, False, memory))
     
     return filesMade
             
-def create_ilp_file(G, latency, memoryMinTrue, memory):
+def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
     #---ILP File Creation---
     if(memoryMinTrue == True):
         ilp_file = "memoryMin.ilp"
@@ -182,38 +176,36 @@ def create_ilp_file(G, latency, memoryMinTrue, memory):
                         f.write(f"{asapSchedule[n]}{integerList[n]} - {asapSchedule[p]}{integerList[p]} >= 1\n")
             
                     constraintNum += 1
-            
-        #f.write("\n") 
-        
-        # Add resource constraints (Based on memory?)
-        resources = memory
-        # for t in range(1, resources + 1):
-        #     f.write(f"{constraint}{str(constraintNum)}: ")
-        #     terms = [f"{var}{n}" for n in G.nodes() if n != rootNode]
-        #     f.write(" + ".join(terms))
-        #     f.write(f" <= {resources}\n")
-        #     constraintNum += 1
              
         f.write("\n")
              
         #Integer Constraints
         integerNum = 0
         integerStr = "i"
+        allIntegers = []
         for n in G.nodes():
             if n==-1:
                 continue
             else:
                 if type(integerList[n]) != list:
-                    f.write(f"{integerStr}{str(integerNum)}: ")
-                    f.write(f"{integerList[n]} >= 0\n")
-                    integerNum += 1
+                    if(integerList[n] in allIntegers):
+                        continue
+                    else:
+                        f.write(f"{integerStr}{str(integerNum)}: ")
+                        f.write(f"{integerList[n]} >= 0\n")
+                        allIntegers.append(integerList[n])
+                        integerNum += 1
                 else:
                     rangeNum = 0
                     for termIndex in integerList[n]:
-                        f.write(f"{integerStr}{str(integerNum)}: ")
-                        f.write(f"{integerList[n][rangeNum]} >= 0\n")
-                        integerNum +=1
-                        rangeNum = rangeNum + 1
+                        if(integerList[n][rangeNum] in allIntegers):
+                            continue
+                        else:
+                            f.write(f"{integerStr}{str(integerNum)}: ")
+                            f.write(f"{integerList[n][rangeNum]} >= 0\n")
+                            allIntegers.append(integerList[n][rangeNum])
+                            integerNum +=1
+                            rangeNum += 1
         f.write("\n")
         
         #Resource Constraints
@@ -239,12 +231,7 @@ def create_ilp_file(G, latency, memoryMinTrue, memory):
                     f.write(" + ".join(terms))
                     f.write(f" - {var}{n} <= 0\n")
                     resourceNum += 1
-                
-        # f.write("\nBounds\n")
-        # for n in G.nodes():
-        #     if n != rootNode:
-        #         f.write(f"0 <= {var}{n} <= {resources}\n")
-            
+    
         f.write("\nInteger\n")
         for n in G.nodes():
             if(n==-1):
@@ -258,7 +245,6 @@ def create_ilp_file(G, latency, memoryMinTrue, memory):
                         f.write(f"{integerList[n][rangeNum]} ")
                         rangeNum = rangeNum + 1
                     
-            
         f.write("\n\nEnd")
         
     return ilp_file
@@ -273,7 +259,6 @@ def solve_ilp_formulation(ilp_formulation_file, minMemTrue):
     result = subprocess.run(["glpsol", "--lp", ilp_formulation_file, "-o", output_file])
     return output_file, result.returncode
 
-#TODO: Fix issue IN BOTH FUNCTIONS? where successors/predecesors are appearing on the same level
 #TODO: Realized this is NOT to get the best schedule but just all possible schedules that fit. Then all those 
 #possibilities will be put into GLPK and the best one outputted
 def minimize_memory_under_latency(G, L):
@@ -296,6 +281,10 @@ def minimize_memory_under_latency(G, L):
         for i in range(1, slack+1):
             #Uses slack range to add a new level then check if memory usage is less and updates Asap_schedule if so
             new_level = asap_schedule[node] + i
+            
+            if new_level > L: #This is to ensure out-of-bounds exception doesn't happen
+                break
+            
             if memory_usage[new_level] + G.nodes[node]["TotalWeight"] < memory_usage[asap_schedule[node]]:
                 memory_usage[asap_schedule[node]] -= G.nodes[node]["TotalWeight"]
                 memory_usage[new_level] += G.nodes[node]["TotalWeight"]
@@ -327,7 +316,6 @@ def minimize_latency_under_memory(G, M, L):
 
     return asap_schedule
   
-#TODO: GO OVER THIS AND CHECK IT'S OUTPUTS  
 def latency_memory_pareto_analysis(G, max_latency, max_memory):
     pareto_results = {}
     for latency in range(1, max_latency + 1):

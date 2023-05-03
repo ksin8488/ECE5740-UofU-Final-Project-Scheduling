@@ -131,4 +131,6 @@ dmypy.json
 #Additonal files/folder specified by user
 glpk-4.35
 glpk-4.35.tar.gz
+tiny.ilp
+tiny.sol
 
