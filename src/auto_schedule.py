@@ -18,6 +18,7 @@ def preprocess_graph(G):
     return G, rootNode
 
 def critical_path(G, latency):
+    #For ever latency over the longest node path, you add 1 to each 
     pass
     
 #Defining functions for generating ILP formulations and solving them using the GLPK solver
@@ -42,10 +43,10 @@ def generate_ilp_formulation(G, latency, memory):
     #---Calculate Slack for Nodes---
     asap = calculate_asap(G, latency)
     alap = calculate_alap(G, latency)
-    print(asap)
-    print(alap)
+    print("ASAP scheudle:", asap)
+    print("ALAP schedule:", alap)
     slackMob = compute_slack_mobility(asap, alap)
-    print(slackMob)
+    print("Slack Mobility:", slackMob)
             
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
@@ -72,14 +73,17 @@ def generate_ilp_formulation(G, latency, memory):
     min_Lat = minimize_latency_under_memory(G, memory, latency)
     print("Min Latency Output: ", min_Lat)
     
-    print("Slack Mobility", slackMob)
     filesMade = []
-    filesMade.append(create_ilp_file(G, min_Mem, True, memory))
-    filesMade.append(create_ilp_file(G, min_Lat, False, memory))
+    # filesMade.append(create_ilp_file(G, min_Mem, True, memory))
+    # filesMade.append(create_ilp_file(G, min_Lat, False, memory))
+    
+    #TODO: Version without minimization and gives latency instead
+    filesMade.append(create_ilp_file(G, latency, True, memory))
+    filesMade.append(create_ilp_file(G, latency, False, memory))
     
     return filesMade
             
-def create_ilp_file(G, schedule, memoryMinTrue, memory):
+def create_ilp_file(G, latency, memoryMinTrue, memory):
     #---ILP File Creation---
     if(memoryMinTrue == True):
         ilp_file = "memoryMin.ilp"
@@ -102,8 +106,12 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
         constraintNum = 0
         constraint = "c"
         var = "x"
-        integerList = [] #List of integers to be used at the end for the Integer section
-    
+        integerList = {} #Dictionary of integers to keep track for ILP formatting
+        
+        asapSchedule = calculate_asap(G, latency)
+        alapSchedule = calculate_alap(G, latency)
+        slackRange = compute_slack_mobility(asapSchedule, alapSchedule)
+        
         f.write("Minimize\n")
         TotalWeight = "TotalWeight"
         obj_terms = [f"{G.nodes[n][TotalWeight]}x{n}" for n in G.nodes() if n != rootNode]
@@ -117,19 +125,61 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
                 continue
             else:
                 f.write(f"{constraint}{str(constraintNum)}: ")
-                #f.write(f"{var}{n} = 1\n") ##OLD version
-                f.write(f"{var}{n}{schedule[n]} = 1\n")
-                integerList.append(f"{var}{n}{schedule[n]}") #Adds the new integer to the list to be used later
+                
+                #for slack in slackRange:
+                if slackRange[n] > 0:
+                    terms = []
+                    for rangeNum in range(0,slackRange[n]+1):
+                        terms.append(f"{var}{n}{asapSchedule[n]+rangeNum}")
+                        integerList[n] = terms #Adds the new integer to the list to be used later
+                    
+                    f.write(" + ".join(terms))
+                    f.write(" = 1\n")
+                else:
+                    f.write(f"{var}{n}{asapSchedule[n]} = 1\n")
+                    integerList[n] =  f"{var}{n}{asapSchedule[n]}"
+                
                 constraintNum += 1
 
         f.write("\n")
+        print("Full Dict:", integerList)
         
         # Add dependency constraints
         for n in G.nodes():
             if n != rootNode:
                 predecessors = list(G.predecessors(n))
                 for p in predecessors:
-                    f.write(f"{constraint}{str(constraintNum)}: {var}{n} - {var}{p} >= 1\n")
+                    f.write(f"{constraint}{str(constraintNum)}: ")
+                    terms1 = []
+                    terms2 = []
+                    if (type(integerList[n]) == list) | (type(integerList[p]) == list):
+                        rangeNum = 0
+                        if type(integerList[n]) == list:
+                            for termIndex in integerList[n]:
+                                terms1.append(f"{asapSchedule[n]+rangeNum}{integerList[n][rangeNum]}")
+                                rangeNum = rangeNum + 1
+                        else: 
+                            terms1.append(f"{asapSchedule[n]+rangeNum}{integerList[n]}")
+                            rangeNum = rangeNum + 1
+                        
+                        f.write(" + ".join(terms1))
+                        f.write(" - ")
+                        
+                        rangeNum = 0
+                        if type(integerList[p]) == list:
+                            for termIndex in integerList[p]:
+                                terms2.append(f"{asapSchedule[p]+rangeNum}{integerList[p][rangeNum]}")
+                                rangeNum = rangeNum + 1
+                        else: 
+                            terms2.append(f"{asapSchedule[p]+rangeNum}{integerList[p]}")
+                            rangeNum = rangeNum + 1
+                           
+                        f.write(" - ".join(terms2))
+                        f.write(" >= 1\n")
+                        
+                    else:
+                        f.write(f"{asapSchedule[n]}{integerList[n]} - {asapSchedule[p]}{integerList[p]} >= 1\n")
+            
                     constraintNum += 1
             
         #f.write("\n") 
@@ -152,20 +202,36 @@ def create_ilp_file(G, schedule, memoryMinTrue, memory):
             if n==-1:
                 continue
             else:
-                f.write(f"{integerStr}{str(integerNum)}: {var}{n} >= 0\n")
-                integerNum += 1
+                if type(integerList[n]) != list:
+                    f.write(f"{integerStr}{str(integerNum)}: ")
+                    f.write(f"{integerList[n]} >= 0\n")
+                    integerNum += 1
+                else:
+                    rangeNum = 0
+                    for termIndex in integerList[n]:
+                        f.write(f"{integerStr}{str(integerNum)}: ")
+                        f.write(f"{integerList[n][rangeNum]} >= 0\n")
+                        integerNum +=1
+                        rangeNum = rangeNum + 1
 
-        f.write("\nBounds\n")
-        for n in G.nodes():
-            if n != rootNode:
-                f.write(f"0 <= {var}{n} <= {resources}\n")
+        # f.write("\nBounds\n")
+        # for n in G.nodes():
+        #     if n != rootNode:
+        #         f.write(f"0 <= {var}{n} <= {resources}\n")
             
         f.write("\nInteger\n")
         for n in G.nodes():
             if(n==-1):
                 continue
             else:
-                f.write(f"{var}{n} ")
+                if type(integerList[n]) != list:
+                    f.write(f"{integerList[n]} ")
+                else:
+                    rangeNum = 0
+                    for termIndex in integerList[n]:
+                        f.write(f"{integerList[n][rangeNum]} ")
+                        rangeNum = rangeNum + 1
+                    
             
         f.write("\n\nEnd")
         
