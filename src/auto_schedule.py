@@ -8,25 +8,19 @@ import subprocess
 
 #Defining functions for pre-processing the graph representation and design specifications
 def read_edgelist(file_path):
+    #Use a weighted edgelist so memory value can be saved as an edge attribute
     G = nx.read_weighted_edgelist(file_path, create_using=nx.DiGraph, nodetype=int)
     return G
 
 def preprocess_graph(G):
-    #implement any required pre-processing here
     rootNode = -1 #Topmost node created before getting into the actual graph (represented as a -1)
     G.add_node(rootNode)
     return G, rootNode
-
-def critical_path(G, latency):
-    #For ever latency over the longest node path, you add 1 to each 
-    pass
     
 #Defining functions for generating ILP formulations and solving them using the GLPK solver
 def generate_ilp_formulation(G, latency, memory):
-    #implement ILP formulation generation here
-    
     rootNode = -1
-    #---THIS IS FOR GETTING NODE LEVELS WITHOUT ALAP OR ASAP OPTIMINIZATION---      
+          
     # Perform topological sort
     topo_order = list(nx.topological_sort(G))
     # Initialize node levels dictionary
@@ -42,15 +36,15 @@ def generate_ilp_formulation(G, latency, memory):
     #---Calculate Slack for Nodes---
     asap = calculate_asap(G, latency)
     alap = calculate_alap(G, latency)
+    slackMob = compute_slack_mobility(asap, alap)
     #print("ASAP scheudle:", asap)
     #print("ALAP schedule:", alap)
-    slackMob = compute_slack_mobility(asap, alap)
     #print("Slack Mobility:", slackMob)
             
     for n in G:
         connectedNodes = sorted(list(G.adj[n]))
     
-    #---ADDING TOTAL WEIGHT TO EACH NODE---
+    #---Adding total weight of each node as a node attribute---
     TotalNodeWeight = [0]
     nx.set_node_attributes(G, TotalNodeWeight, "TotalWeight")
     
@@ -78,13 +72,15 @@ def generate_ilp_formulation(G, latency, memory):
     return filesMade
             
 def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
+    rootNode = -1
+    
     #---ILP File Creation---
     if(memoryMinTrue == True):
         ilp_file = "memoryMin.ilp"
     else:
         ilp_file = "latencyMin.ilp"
     
-    rootNode = -1
+    #Calculates total weight for each node and sets it as an attribute
     for n in G:
         nodePred = list(G.predecessors(n))
         if len(nodePred) == 0: # In case the node has no predecessors (top level)
@@ -96,16 +92,19 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                 total_weight += edge_weight
             G.nodes[n]["TotalWeight"] = int(total_weight)
     
+    #Create new file and start generating ILP constraints
     with open(ilp_file, 'w') as f: #'w' lets you write (overwrite) a file while 'a' lets you append/add to a file
         constraintNum = 0
         constraint = "c"
         var = "x"
-        integerList = {} #Dictionary of integers to keep track for ILP formatting
+        integerList = {} #Dictionary of integers to keep track of for ILP formatting
         
+        #Scheduling results to use in ILP generation
         asapSchedule = calculate_asap(G, latency)
         alapSchedule = calculate_alap(G, latency)
         slackRange = compute_slack_mobility(asapSchedule, alapSchedule)
         
+        #Minimize section
         f.write("Minimize\n")
         
         TotalWeight = "TotalWeight"
@@ -114,7 +113,7 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
             
         f.write("\nSubject To\n")
         
-        #Each node constraint
+        #General node and node slack constraints
         for n in G:
             if(n == -1):
                 continue
@@ -137,9 +136,9 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                 constraintNum += 1
 
         f.write("\n")
-        print("Full Dict:", integerList)
+        #print("Full Dict:", integerList)
         
-        # Add dependency constraints
+        #Dependency constraints with slack
         for n in G.nodes():
             if n != rootNode:
                 predecessors = list(G.predecessors(n))
@@ -147,6 +146,8 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                     f.write(f"{constraint}{str(constraintNum)}: ")
                     terms1 = []
                     terms2 = []
+                    
+                    #Sometimes the integerList stores variables as a list or just a string, so need to check which one to avoid crashes
                     if (type(integerList[n]) == list) | (type(integerList[p]) == list):
                         rangeNum = 0
                         if type(integerList[n]) == list:
@@ -160,6 +161,7 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                         f.write(" + ".join(terms1))
                         f.write(" - ")
                         
+                        #2nd Half of dependency constraints
                         rangeNum = 0
                         if type(integerList[p]) == list:
                             for termIndex in integerList[p]:
@@ -170,8 +172,7 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                             rangeNum = rangeNum + 1
                            
                         f.write(" - ".join(terms2))
-                        f.write(" >= 1\n")
-                        
+                        f.write(" >= 1\n")    
                     else:
                         f.write(f"{asapSchedule[n]}{integerList[n]} - {asapSchedule[p]}{integerList[p]} >= 1\n")
             
@@ -232,6 +233,7 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                     f.write(f" - {var}{n} <= 0\n")
                     resourceNum += 1
     
+        #Integer list
         f.write("\nInteger\n")
         for n in G.nodes():
             if(n==-1):
@@ -247,7 +249,7 @@ def create_ilp_file(G, latency, schedule, memoryMinTrue, memory):
                     
         f.write("\n\nEnd")
         
-    return ilp_file
+    return ilp_file #Return ILP file to be processed by GLPK
 
 def solve_ilp_formulation(ilp_formulation_file, minMemTrue):
     #implement ILP solution extraction using GLPK solver here
